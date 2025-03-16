@@ -1,0 +1,12 @@
+{
+  "extensions": [
+    "java",
+    "html"
+  ],
+  "specific_files": [
+    "application.properties"
+  ],
+  "exclusions": [
+    "problems-report.html"
+  ]
+}
