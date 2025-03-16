@@ -148,7 +148,7 @@ class PDFConverter:
         self.root.after(100, self.check_queue)
 
     def create_pdf_from_file(self, filepath, output_dir):
-        """Создание PDF из одного файла с заголовком"""
+        """Создание PDF с сохранением оригинального форматирования HTML"""
         try:
             filename = os.path.basename(filepath)
             parts_dir = os.path.join(output_dir, "parts")
@@ -158,44 +158,61 @@ class PDFConverter:
             with open(filepath, 'r', encoding='utf-8') as file:
                 content = file.read()
 
+            # Настройки шрифта
+            font_name = "DejaVuSansMono"
+            font_size = 10
+            leading = 12
+            margin = 40
+            page_width = letter[0] - 2 * margin
+
+            # Инициализация PDF
             c = canvas.Canvas(pdf_path, pagesize=letter)
-            width, height = letter
-            y_position = height - 40
-            page_number = 1
+            c.setFont(font_name + "-Bold", 12)
 
-            # Добавляем заголовок
-            c.setFont("DejaVuSansMono-Bold", 12)
-            header = f"{filename}:"
-            c.drawString(40, y_position, header)
-            y_position -= 20
+            # Добавление заголовка
+            c.drawString(margin, letter[1] - margin - 15, f"{filename}:")
+            y_position = letter[1] - margin - 40
+            c.setFont(font_name, font_size)
 
-            # Основной текст
-            c.setFont("DejaVuSansMono", 10)
-            text = c.beginText(40, y_position)
+            # Функция для разбивки длинных строк
+            def split_line(line, max_width):
+                words = line.split(' ')
+                lines = []
+                current_line = []
+                current_width = 0
 
+                for word in words:
+                    word_width = c.stringWidth(word + ' ', font_name, font_size)
+                    if current_width + word_width > max_width:
+                        lines.append(' '.join(current_line))
+                        current_line = [word]
+                        current_width = word_width
+                    else:
+                        current_line.append(word)
+                        current_width += word_width
+
+                lines.append(' '.join(current_line))
+                return lines
+
+            # Обработка содержимого
             for line in content.split('\n'):
-                text.textLine(line.strip('\r'))
-                y_position -= 15
-                if y_position < 40:
-                    # Завершаем текущую страницу
-                    c.drawText(text)
-                    c.showPage()
-                    page_number += 1
-                    y_position = height - 40
+                line = line.rstrip('\r')
 
-                    # Добавляем заголовок на новой странице
-                    if page_number > 1:
-                        c.setFont("DejaVuSansMono-Bold", 12)
-                        c.drawString(40, y_position, f"{filename} (продолжение):")
-                        y_position -= 20
-                        c.setFont("DejaVuSansMono", 10)
+                # Разбиваем длинные строки
+                for wrapped_line in split_line(line, page_width):
+                    if y_position < margin + 20:
+                        c.showPage()
+                        y_position = letter[1] - margin
+                        c.setFont(font_name, font_size)
 
-                    text = c.beginText(40, y_position)
+                    c.drawString(margin, y_position, wrapped_line)
+                    y_position -= leading
 
-            c.drawText(text)
             c.save()
             return pdf_path
+
         except Exception as e:
+            self.queue.put(e)
             return None
 
     def process_files(self):
